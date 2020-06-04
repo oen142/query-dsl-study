@@ -125,6 +125,7 @@ public class QueryDslBasicTest {
         assertThat(findMember.getUsername()).isEqualTo("member1");
     }
 
+/*
     @Test
     public void resultFetch() {
         List<Member> fet = jpaQueryFactory.selectFrom(member)
@@ -150,6 +151,7 @@ public class QueryDslBasicTest {
 
 
     }
+*/
 
     /*
      * 회원 정렬 순서
@@ -676,6 +678,7 @@ public class QueryDslBasicTest {
                 .fetch();
     }
 
+
     /*
      * 동적쿼리 where - 다중파라미터
      * */
@@ -711,15 +714,88 @@ public class QueryDslBasicTest {
      * 광고 상태 isValid, 날짜가 IN  : isServiceable
      * */
     /*
-    * where 조건에 null값은 무시된다
-    * 메서드를 다른 쿼리에서도 재활용 할 수 있다.
-    * 쿼리 자체의 가독성이 높아진다.
-    *
-    * 조합 할때 null 체크를 해야한다.
-    * */
+     * where 조건에 null값은 무시된다
+     * 메서드를 다른 쿼리에서도 재활용 할 수 있다.
+     * 쿼리 자체의 가독성이 높아진다.
+     *
+     * 조합 할때 null 체크를 해야한다.
+     * */
     private BooleanExpression allEq(String username, Integer ageCond) {
         return usernameEq(username).and(ageEq(ageCond));
 
+    }
+
+    //@Commit
+    /*
+     * 영속성 컨텍스트에 다 올라가있다.
+     * update 해주고
+     * flush
+     * clear 해야한다.
+     * */
+    @Test
+    public void bulkUpdate() {
+
+        //member1 = 10
+        //member2 = 20
+        long count = jpaQueryFactory
+                .update(member)
+                .set(member.username, "비회원")
+                .where(member.age.lt(27))
+                .execute();
+
+    }
+
+    @Test
+    public void bulkAdd() {
+        //곱은 multiply
+        jpaQueryFactory
+                .update(member)
+                .set(member.age, member.age.add(1))
+                .execute();
+    }
+
+
+    @Test
+    public void blukDelete() {
+        jpaQueryFactory
+                .delete(member)
+                .where(member.age.eq(10))
+                .execute();
+    }
+
+    /*
+     * SQL function 호출하기
+     * JPA와 같이 Dialect등록된 내용만 호출가능하다.
+     * */
+
+    @Test
+    public void sqlFunction() {
+        List<String> result = jpaQueryFactory
+                .select(
+                        Expressions.stringTemplate("function('replace',{0},{1},{2})", member.username, "member", "m"))
+                .from(member)
+                .fetch();
+
+        for (String s : result) {
+            System.out.println("s = " + s);
+        }
+    }
+
+
+    @Test
+    public void sqlFunction2() {
+        /*
+        *       .where(member.username.eq(Expressions.stringTemplate("function('lower',{0})"
+                        , member.username))
+        * */
+        List<String> fetch = jpaQueryFactory
+                .select(member.username)
+                .from(member)
+                .where(member.username.eq(member.username.lower()))
+                .fetch();
+        for (String s : fetch) {
+            System.out.println("s = " + s);
+        }
     }
 
 }

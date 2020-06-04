@@ -1,7 +1,12 @@
 package querydslstudy.querydslstudy;
 
+import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.ExpressionUtils;
+import com.querydsl.core.types.Predicate;
+import com.querydsl.core.types.Projections;
+import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.JPAExpressions;
@@ -11,6 +16,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
+import querydslstudy.querydslstudy.dto.MemberDto;
+import querydslstudy.querydslstudy.dto.QMemberDto;
+import querydslstudy.querydslstudy.dto.UserDto;
 import querydslstudy.querydslstudy.entity.Member;
 import querydslstudy.querydslstudy.entity.QMember;
 import querydslstudy.querydslstudy.entity.QTeam;
@@ -21,6 +29,7 @@ import javax.persistence.EntityManagerFactory;
 import javax.persistence.PersistenceUnit;
 import java.util.List;
 
+import static com.querydsl.core.types.Projections.*;
 import static com.querydsl.jpa.JPAExpressions.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.iterable;
@@ -469,7 +478,7 @@ public class QueryDslBasicTest {
 
     @Test
     public void complexCase() {
-        List<String> result  = jpaQueryFactory
+        List<String> result = jpaQueryFactory
                 .select(new CaseBuilder().when(member.age.between(0, 20)).then("0~20살")
                         .when(member.age.between(21, 30)).then("21~30"
                         ).otherwise("기타"))
@@ -482,7 +491,7 @@ public class QueryDslBasicTest {
     }
 
     @Test
-    public void constant(){
+    public void constant() {
         List<Tuple> result = jpaQueryFactory
                 .select(member.username, Expressions.constant("A"))
                 .from(member)
@@ -492,8 +501,9 @@ public class QueryDslBasicTest {
             System.out.println("tuple = " + tuple);
         }
     }
+
     @Test
-    public void concat(){
+    public void concat() {
 
         //username_age
         List<String> result = jpaQueryFactory.select(member.username.concat("_").concat(member.age.stringValue()))
@@ -505,8 +515,211 @@ public class QueryDslBasicTest {
             System.out.println("s = " + s);
         }
     }
-    
+
     /*
-    * 프로젝션 select 대상 지정
+     * 프로젝션 select 대상 지정
+     * */
+
+    @Test
+    public void simpleProjection() {
+        List<String> result = jpaQueryFactory
+                .select(member.username)
+                .from(member)
+                .fetch();
+
+        for (String s : result) {
+            System.out.println("s = " + s);
+        }
+    }
+
+    @Test
+    public void tupleProjection() {
+        List<Tuple> result = jpaQueryFactory
+                .select(member.username, member.age)
+                .from(member)
+                .fetch();
+        for (Tuple tuple : result) {
+            String username = tuple.get(member.username);
+            Integer age = tuple.get(member.age);
+            System.out.println("username = " + username);
+            System.out.println("age = " + age);
+        }
+    }
+
+    @Test
+    public void findDtoByJPQL() {
+        List<MemberDto> resultList = em.createQuery("select new querydslstudy.querydslstudy.dto.MemberDto(m.username , m.age) from Member m", MemberDto.class)
+                .getResultList();
+
+        for (MemberDto memberDto : resultList) {
+            System.out.println("memberDto = " + memberDto);
+        }
+    }
+
+    /*
+     * 기본 생성자 필요
+     * */
+    @Test
+    public void findDtoByQueryDslToSetter() {
+        List<MemberDto> result = jpaQueryFactory
+                .select(bean(MemberDto.class, member.username, member.age))
+                .from(member)
+                .fetch();
+
+        for (MemberDto memberDto : result) {
+            System.out.println("memberDto = " + memberDto);
+        }
+    }
+
+    @Test
+    public void findDtoByQueryDslToFields() {
+        List<MemberDto> result = jpaQueryFactory
+                .select(fields(MemberDto.class, member.username, member.age))
+                .from(member)
+                .fetch();
+
+        for (MemberDto memberDto : result) {
+            System.out.println("memberDto = " + memberDto);
+        }
+    }
+
+    /*
+     * todo java 리플렉션
+     * */
+    @Test
+    public void findDtoByQueryDslToConstructor() {
+        List<MemberDto> result = jpaQueryFactory
+                .select(constructor(MemberDto.class, member.username, member.age))
+                .from(member)
+                .fetch();
+
+        for (MemberDto memberDto : result) {
+            System.out.println("memberDto = " + memberDto);
+        }
+    }
+
+    /*
+     * 프로퍼티나 필드 접근 생성방식에서 이름이 다를때 해결방안
+     * ExpressionUtils
+     * */
+    @Test
+    public void findUserDtoByQueryDslToFields() {
+        QMember memberSub = new QMember("memberSub");
+        List<UserDto> result = jpaQueryFactory
+                .select(fields(UserDto.class, member.username.as("name"),
+                        ExpressionUtils.as(
+                                JPAExpressions
+                                        .select(memberSub.age.max())
+                                        .from(memberSub), "age"
+                        )
+                ))
+                .from(member)
+                .fetch();
+
+
+        for (UserDto userDto : result) {
+            System.out.println("userDto = " + userDto);
+        }
+    }
+
+    @Test
+    public void findUserDtoByQueryDslToConstructor() {
+        List<UserDto> result = jpaQueryFactory
+                .select(constructor(UserDto.class, member.username, member.age))
+                .from(member)
+                .fetch();
+
+        for (UserDto userDto : result) {
+            System.out.println("memberDto = " + userDto);
+        }
+    }
+
+    @Test
+    public void findDtoByQueryProjection() {
+        List<MemberDto> result = jpaQueryFactory
+                .select(new QMemberDto(member.username, member.age))
+                .from(member)
+                .fetch();
+
+        for (MemberDto memberDto : result) {
+            System.out.println("memberDto = " + memberDto);
+        }
+
+    }
+
+    /*
+     * 동적 쿼리를 해결하는 두가지 방식
+     * BooleanBuilder
+     * */
+    @Test
+    public void dynamicQuery_BooleanBuilder() {
+        String usernameParam = "member1";
+        Integer ageParam = null;
+
+        List<Member> result = searchMember1(usernameParam, ageParam);
+        assertThat(result.size()).isEqualTo(1);
+    }
+
+    private List<Member> searchMember1(String usernameCond, Integer ageCond) {
+
+        BooleanBuilder builder = new BooleanBuilder();
+        if (usernameCond != null) {
+            builder.and(member.username.eq(usernameCond));
+        }
+        if (ageCond != null) {
+            builder.and(member.age.eq(ageCond));
+        }
+
+        return jpaQueryFactory
+                .selectFrom(member)
+                .where(builder)
+                .fetch();
+    }
+
+    /*
+     * 동적쿼리 where - 다중파라미터
+     * */
+    @Test
+    public void dynamicQuery_WhereParam() {
+        String usernameParam = "member1";
+        Integer ageParam = 10;
+
+        List<Member> result = searchMember2(usernameParam, ageParam);
+        assertThat(result.size()).isEqualTo(1);
+    }
+
+    private List<Member> searchMember2(String usernameCond, Integer ageCond) {
+
+        return jpaQueryFactory
+                .selectFrom(member)
+                .where(usernameEq(usernameCond), ageEq(ageCond))
+                //.where(allEq(usernameCond , ageCond)
+                .fetch();
+    }
+
+
+    private BooleanExpression usernameEq(String usernameCond) {
+        return usernameCond != null ? member.username.eq(usernameCond) : null;
+    }
+
+    private BooleanExpression ageEq(Integer ageCond) {
+        return ageCond != null ? member.age.eq(ageCond) : null;
+
+    }
+
+    /*
+     * 광고 상태 isValid, 날짜가 IN  : isServiceable
+     * */
+    /*
+    * where 조건에 null값은 무시된다
+    * 메서드를 다른 쿼리에서도 재활용 할 수 있다.
+    * 쿼리 자체의 가독성이 높아진다.
+    *
+    * 조합 할때 null 체크를 해야한다.
     * */
+    private BooleanExpression allEq(String username, Integer ageCond) {
+        return usernameEq(username).and(ageEq(ageCond));
+
+    }
+
 }
